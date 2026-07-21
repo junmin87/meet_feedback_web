@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE - editor settings (개인 환경 설정은 커밋하지 않음)
+.vscode/
+.idea/
+
+# Claude Code (기기별 로컬 설정만 제외; CLAUDE.md / AGENTS.md는 커밋)
+.claude/settings.local.json
