@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 회의록 코치 — 프론트엔드 (Next.js)
 
-## Getting Started
+회의록을 입력하면 **회의 품질을 진단·채점**해주는 서비스의 프론트엔드입니다.
+회의 아젠다·유형과 회의록(텍스트 또는 음성)을 입력하면, NestJS 게이트웨이 백엔드로 보내 루브릭 기반 채점 결과를 받아 보여줍니다.
 
-First, run the development server:
+> 실서비스: [meet-feedback-web.vercel.app](https://meet-feedback-web.vercel.app/)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 무엇을 하나요
+
+- 회의 유형(아이디어 / 진행 / 의사결정)과 아젠다를 입력하고, 회의록을 **텍스트로 붙여넣거나 음성 파일로 업로드**
+- 백엔드가 채점한 항목별 점수·피드백을 받아 화면에 표시
+- 요청 제한(429)에 걸리면 안내 메시지로 구분해 표시
+
+## 아키텍처에서의 위치
+
+프론트엔드는 **백엔드(NestJS 게이트웨이)하고만 통신**합니다. STT·LLM 같은 외부 서비스를 직접 호출하지 않습니다.
+
+```
+[이 저장소] Frontend ──▶ NestJS Gateway ──▶ Python STT / Claude API
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 구조 (레이어별 책임 분리)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+src/
+├── app/           # 페이지·레이아웃 (App Router)
+├── components/    # UI 컴포넌트 (폼, 결과, 에러 표시)
+├── lib/
+│   ├── api.ts         # 백엔드 REST 호출 레이어 (fetch 래핑·응답 파싱·에러 정규화)
+│   ├── use*.ts        # React Query 훅 (서버 상태 관리)
+│   └── *Schema.ts     # Zod 검증 스키마
+└── types/         # 공유 타입 정의
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+각 레이어는 자기 책임만 집니다. 컴포넌트는 직접 `fetch`하지 않고 React Query 훅을 통해서만 데이터를 얻으며, 백엔드 호출과 에러 처리는 `api.ts` 한곳에 모여 있습니다.
 
-## Learn More
+## 주요 설계 포인트
 
-To learn more about Next.js, take a look at the following resources:
+**타입 안전한 API 계약** — 백엔드 응답을 판별 유니온 기반 `ApiResponse<T>`로 파싱해, 호출부가 성공/실패 처리를 타입 레벨에서 강제하도록 구성했습니다. 빈 응답·비-JSON 에러까지 방어적으로 파싱합니다.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**텍스트/음성 입력 통합** — 입력 방식을 토글로 전환하되, 회의 유형·아젠다는 공통으로 두고 회의록 부분만 textarea ↔ 파일 업로드로 바뀝니다. 음성은 `multipart/form-data`로 전송하며, 브라우저가 `Content-Type`(boundary 포함)을 자동 설정하도록 둡니다.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**입력 검증 이원화** — Zod 스키마로 프론트에서 먼저 거르고(방식별로 필수 필드 분기), 백엔드 밸리데이션과 규칙을 맞춰 불필요한 요청을 줄입니다.
 
-## Deploy on Vercel
+**요청 제한 안내** — 백엔드가 429(요청 제한)를 반환하면, 일반 에러와 구분해 "잠시 후 다시" 톤의 안내 스타일로 표시합니다.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 기술 스택
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Next.js (App Router)** · React · TypeScript
+- **TanStack React Query** — 서버 상태 관리
+- **React Hook Form + Zod** — 폼·검증
+- **Tailwind CSS** — 스타일 (다크모드 대응)
+- 배포: **Vercel**
